@@ -1,0 +1,14 @@
+.fb-user-list ul.fb-list {
+  list-style: none;
+  padding: 0;
+}
+
+.fb-user-list ul.fb-list li {
+  margin-bottom: 10px;
+  padding: 5px 5px 0 5px;
+  border: 1px solid;
+}
+
+.fb-user-list ul.fb-list li img {
+  margin-right: 10px;
+}

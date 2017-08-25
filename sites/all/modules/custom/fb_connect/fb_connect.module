@@ -1,0 +1,129 @@
+<?php
+
+/**
+ * @file
+ * Code for the Facebook Connect module.
+ */
+
+use Facebook\FacebookRedirectLoginHelper;
+use Facebook\FacebookSession;
+use Facebook\FacebookRequest;
+
+/**
+ * Implements hook_menu().
+ */
+function fb_connect_menu() {
+  $menus = array();
+
+  $menus['fb-connect/redirect'] = array(
+    'title'            => 'Facebook login redirect',
+    'page callback'    => 'fb_connect_redirect_to_fb',
+    'access arguments' => array('access content'),
+    'type'             => MENU_CALLBACK,
+    'file'             => 'fb_connect.pages.inc',
+  );
+  $menus['fb-connect/return'] = array(
+    'title'            => 'Facebook login return',
+    'page callback'    => 'fb_connect_return_from_fb',
+    'access arguments' => array('access content'),
+    'type'             => MENU_CALLBACK,
+    'file'             => 'fb_connect.pages.inc',
+  );
+
+  return $menus;
+}
+
+/**
+ * Implements hook_libraries_info().
+ */
+function fb_connect_libraries_info() {
+  $libraries = array();
+
+  $libraries['facebook-php-sdk-v4'] = array(
+    'name'         => 'Facebook PHP SDK v4',
+    'vendor url'   => 'https://github.com/facebook/facebook-php-sdk-v4',
+    'download url' => 'https://github.com/facebook/facebook-php-sdk-v4/releases',
+    'xautoload'    => function ($adapter) {
+      $adapter->add('Facebook', 'src');
+    },
+  );
+
+  return $libraries;
+}
+
+/**
+ * Sets the Facebook default application using the SDK.
+ */
+function fb_connect_set_default_app() {
+  $app_id     = variable_get('fb_connect_app_id', '331129020677824');
+  $app_secret = variable_get('fb_connect_app_secret', '1e0f0117ab59e48a2e48795324ff0e83');
+  FacebookSession::setDefaultApplication($app_id, $app_secret);
+}
+
+/**
+ * Gets a login helper for the login return url using the SDK.
+ *
+ * @return Facebook\FacebookRedirectLoginHelper
+ *   A Facebook login helper.
+ */
+function fb_connect_get_login_helper() {
+  // The URL where FB will return the user after authentication.
+  $return_url      = variable_get('fb_connect_return_url', 'fb-connect/return');
+  $return_url_full = url($return_url, array('absolute' => TRUE));
+
+  $login_helper = new FacebookRedirectLoginHelper($return_url_full);
+  return $login_helper;
+}
+
+/**
+ * Gets a session app helper for the site Facebook application using the SDK.
+ *
+ * @return Facebook\FacebookSession
+ *   A Facebook session app helper.
+ */
+function fb_connect_get_app_session() {
+  $app_id     = variable_get('fb_connect_app_id', '331129020677824');
+  $app_secret = variable_get('fb_connect_app_secret', '1e0f0117ab59e48a2e48795324ff0e83');
+  return FacebookSession::newAppSession($app_id, $app_secret);
+}
+
+/**
+ * Gets a list of Facebook user matches using the SDK.
+ *
+ * If current user session does not have the user access token
+ * it assumes user is not logged in into Facebook.
+ *
+ * @param string $user_name
+ *   The user name for the matching.
+ *
+ * @return array|FALSE
+ *   The Facebook matches result or FALSE if user isn't logged in into Facebook.
+ */
+function fb_connect_get_users_matches($user_name) {
+  // Check session has the user access token.
+  if (isset($_SESSION['fb_connect']['user_token'])) {
+    fb_connect_set_default_app();
+
+    $path = format_string('/search?q=@name&type=user&fields=picture,name',
+      array('@name' => $user_name)
+    );
+    $user_token = $_SESSION['fb_connect']['user_token'];
+    $api_version = 'v2.10';
+    $fb_session = fb_connect_get_app_session();
+
+    // Makes the Facebook search for user matches.
+    $request = new FacebookRequest(
+      $fb_session,
+      'GET',
+      $path,
+      array('access_token' => $user_token),
+      $api_version
+    );
+
+    $users = $request->execute()->getGraphObject()->asArray();
+    return $users;
+  }
+
+  // Returns FALSE to flag current user is not logged into Facebook.
+  return FALSE;
+}

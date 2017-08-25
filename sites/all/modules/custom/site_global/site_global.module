@@ -1,0 +1,34 @@
+<?php
+
+/**
+ * @file
+ * Code for the Global Site Config module.
+ */
+
+/**
+ * Implements hook_menu().
+ */
+function site_global_menu() {
+  $menus = array();
+
+  $menus['home'] = array(
+    'title'            => 'Homepage',
+    'page callback'    => 'site_global_homepage',
+    'access arguments' => array('access content'),
+    'file'             => 'site_global.pages.inc',
+  );
+
+  // Root menu for admin links on the site.
+  $menus['admin/config/site'] = array(
+    'title'            => t('Site Admin'),
+    'description'      => t('Administrative tools for the site.'),
+    'page callback'    => 'system_admin_menu_block_page',
+    'access arguments' => array('access administration pages'),
+    'position'         => 'left',
+    'weight'           => -30,
+    'file'             => 'system.admin.inc',
+    'file path'        => drupal_get_path('module', 'system'),
+  );
+
+  return $menus;
+}

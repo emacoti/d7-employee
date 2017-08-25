@@ -1,0 +1,231 @@
+<?php
+
+/**
+ * @file
+ * Code for the Employee module.
+ */
+
+/**
+ * Implements hook_menu().
+ */
+function employee_menu() {
+  $menus = array();
+
+  $menus['admin/config/site/employee'] = array(
+    'title'            => t('Employee Settings'),
+    'description'      => t('Manage Employee settings.'),
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('employee_settings_form'),
+    'access arguments' => array('access administration pages'),
+    'file'             => 'employee.admin.inc',
+  );
+
+  $menus['admin/config/site/employee/settings'] = array(
+    'title'  => 'Settings',
+    'type'   => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => 0,
+  );
+
+  return $menus;
+}
+
+/**
+ * Implements hook_node_view().
+ */
+function employee_node_view($node, $view_mode, $langcode) {
+  $module_path = drupal_get_path('module', 'employee');
+  drupal_add_css($module_path . '/employee.css');
+
+  // Adds to the node content a list with facebook user matches.
+  $node->content['fb_user_matches'] = array(
+    '#type'        => 'fieldset',
+    '#title'       => t('Facebook user matches'),
+    '#collapsible' => TRUE,
+    '#collapsed'   => FALSE,
+    '#weight'      => 50,
+    '#attributes'  => array(
+      'id'    => 'facebook-user-matches',
+      'class' => array('fb-user-list'),
+    ),
+  );
+
+  $list_markup = _employee_node_view_fb_user_matches($node);
+  $node->content['fb_user_matches']['fb_list'] = array(
+    '#type'   => 'markup',
+    '#markup' => $list_markup,
+  );
+}
+
+/**
+ * Implements hook_node_insert().
+ */
+function employee_node_insert($node) {
+  $node_wrapper = entity_metadata_wrapper('node', $node);
+  $first_name   = $node_wrapper->field_employee_first_name->value();
+  $last_name    = $node_wrapper->field_employee_last_name->value();
+
+  $name   = _employee_get_user_name($first_name, $last_name);
+  $domain = variable_get('employee_mail_domain', 'site.com');
+  $mail   = "$name@$domain";
+  $pass   = substr(md5(openssl_random_pseudo_bytes(20)),-16);
+
+  // Creates a new user for the just added employee node.
+  $new_user = array(
+    'name'     => $name,
+    'mail'     => $mail,
+    'pass'     => $pass,
+    'status'   => 1,
+    'access'   => REQUEST_TIME,
+    'roles'    => array(),
+    'timezone' => variable_get('date_default_timezone', ''),
+  );
+  user_save(NULL, $new_user);
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ */
+function employee_form_employee_node_form_alter(&$form, &$form_state, $form_id) {
+  $node = $form['#node'];
+
+  if (!isset($node->nid) || !empty($node->is_new)) {
+    // Only adds the validation for node add form.
+    if (empty($form['#validate'])) {
+      $form['#validate'] = array();
+    }
+
+    $form['#validate'][] = 'employee_form_employee_node_form_validate';
+  }
+}
+
+/**
+ * Validation callback for employee_node_form form.
+ */
+function employee_form_employee_node_form_validate($form, &$form_state) {
+  $first_name = $form_state['values']['field_employee_first_name'][LANGUAGE_NONE][0]['value'];
+  $last_name  = $form_state['values']['field_employee_last_name'][LANGUAGE_NONE][0]['value'];
+
+  $name   = _employee_get_user_name($first_name, $last_name);
+  $domain = variable_get('employee_mail_domain', 'site.com');
+  $mail   = "$name@$domain";
+
+  // Check if already exists an user with same name and mail.
+  $user = user_load_by_name($name);
+  if ($user) {
+    // If user name is already in use then show error and prevent submit.
+    $error_text = 'The following user already exists with the name @name';
+
+    if ($user->mail === $mail) {
+      // Update error message to notify about duplicated mail address.
+      $error_text = 'The following user already exists with the mail @mail';
+    }
+
+    $message = t(
+      $error_text . ': <a href="/user/@uid" target="_blank">@name</a>',
+      array(
+        '@uid'  => $user->uid,
+        '@name' => $name,
+        '@mail' => $mail,
+      )
+    );
+    form_set_error('', $message);
+  }
+}
+
+/**
+ * Gets the markup for the Facebook user matches.
+ *
+ * In case no matches found it returns a message to notify that.
+ *
+ * @param object $node
+ *   An employee node object.
+ *
+ * @return string
+ *   The user matches list markup.
+ */
+function _employee_node_view_fb_user_matches($node) {
+  $node_wrapper = entity_metadata_wrapper('node', $node);
+  $first_name   = $node_wrapper->field_employee_first_name->value();
+  $last_name    = $node_wrapper->field_employee_last_name->value();
+
+  // Prevents execution if fb_connect module is not enabled.
+  if (!module_exists('fb_connect')) {
+    return '';
+  }
+
+  $fb_user_matches = fb_connect_get_users_matches("$first_name $last_name");
+  if ($fb_user_matches === FALSE) {
+    // Needs to login into Facebook.
+    $current_path  = current_path();
+    $fb_login_link = l(
+      t('Login into Facebook'),
+      'fb-connect/redirect',
+      array(
+        'query' => array('destination' => $current_path),
+      )
+    );
+
+    // Shows a message and a link so user can login into Facebook.
+    $list_markup  = '<p>' . t('You must login into Facebook to see the users list.') . '</p>';
+    $list_markup .= $fb_login_link;
+  }
+  else {
+    // Current user is logged in into Facebook and could make the search.
+    if (!empty($fb_user_matches)) {
+      $list_markup = _employee_node_view_fb_user_list($fb_user_matches);
+    }
+    else {
+      $list_markup = t('No matches found.');
+    }
+  }
+
+  return $list_markup;
+}
+
+/**
+ * Gets the markup for the list of Facebook user matches.
+ *
+ * @param array $fb_users
+ *   The Facebook user matches search result.
+ *
+ * @return string
+ *   The markup of the list of user matches.
+ */
+function _employee_node_view_fb_user_list($fb_users) {
+  $users_list_items = array();
+  foreach ($fb_users['data'] as $fb_user) {
+    $list_item  = '<img src="' . $fb_user->picture->data->url . '">';
+    $list_item .= '<span>' . $fb_user->name . '</span>';
+    $users_list_items[] = $list_item;
+  }
+
+  $item_list_var = array(
+    'items'      => $users_list_items,
+    'type'       => 'ul',
+    'title'      => '',
+    'attributes' => array(
+      'class' => array('fb-list'),
+    ),
+  );
+  $users_list_markup = theme_item_list($item_list_var);
+
+  return $users_list_markup;
+}
+
+/**
+ * Processes user first and last name and gets valid user name.
+ *
+ * @param string $first_name
+ *   The user first name.
+ * @param  $last_name
+ *   The user last name.
+ *
+ * @return string
+ *   A valid user name.
+ */
+function _employee_get_user_name($first_name, $last_name) {
+  $first_name = str_replace(' ', '.', strtolower($first_name));
+  $last_name  = str_replace(' ', '.', strtolower($last_name));
+
+  return "$first_name.$last_name";
+}

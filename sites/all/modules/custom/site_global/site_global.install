@@ -1,0 +1,29 @@
+<?php
+
+/**
+ * @file
+ * Install and update functions for the Global Site Config module.
+ */
+
+/**
+ * Implements hook_install().
+ */
+function site_global_install() {
+  site_global_update_7100();
+}
+
+/**
+ * Enables wu_node_view_page feature.
+ */
+function site_global_update_7100() {
+  $modules = array(
+    't_department',
+    'ct_employee',
+    'v_employees',
+    'global_config',
+    'fb_connect',
+    'employee',
+  );
+
+  module_enable($modules);
+}

@@ -1,0 +1,8 @@
+name = Facebook Connect
+description = Allows an user to login into Facebook.
+core = 7.x
+package = Site
+version = 7.x-1.0
+project = fb-connect
+dependencies[] = libraries
+dependencies[] = xautoload
