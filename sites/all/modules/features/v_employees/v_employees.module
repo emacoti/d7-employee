@@ -1,0 +1,7 @@
+<?php
+/**
+ * @file
+ * Code for the v_employees feature.
+ */
+
+include_once 'v_employees.features.inc';

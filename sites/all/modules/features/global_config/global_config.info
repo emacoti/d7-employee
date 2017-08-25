@@ -1,0 +1,11 @@
+name = Global Config Variable
+description = Provides global configuration variables.
+core = 7.x
+package = Site Variable
+version = 7.x-1.0
+project = global_config
+dependencies[] = ctools
+dependencies[] = strongarm
+features[ctools][] = strongarm:strongarm:1
+features[features_api][] = api:2
+features[variable][] = site_frontpage

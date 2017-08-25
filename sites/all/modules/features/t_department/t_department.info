@@ -1,0 +1,10 @@
+name = Department Taxonomy
+description = Provides the Department taxonomy.
+core = 7.x
+package = Site Taxonomy
+version = 7.x-1.0
+project = t_department
+dependencies[] = features
+dependencies[] = taxonomy
+features[features_api][] = api:2
+features[taxonomy][] = department
